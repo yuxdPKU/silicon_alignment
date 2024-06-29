@@ -1,0 +1,29 @@
+TVector3 YDetectorGeometry::GToS(TrkrHitSet *hitset, TVector3 world)
+{
+   auto hitsetkey = hitset->getHitSetKey();
+
+   layer = TrkrDefs::getLayer(hitsetkey);
+
+   if(Layer<NLayerIB){
+      //MVTX hit
+      stave = MvtxDefs::getStaveId(hitsetkey);
+      chip = MvtxDefs::getChipId(hitsetkey);
+      auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+      auto layergeom = dynamic_cast<CylinderGeom_Mvtx *>(geantGeom->GetLayerGeom(layer));
+
+      TVector
+      LocalUse.SetX(local_coords.x());
+      LocalUse.SetY(local_coords.z());
+      TVector3 ClusterWorld = layergeom->get_world_from_local_coords(surface, actsGeom, LocalUse); // cm, sPHENIX unit
+std::cout<<"global_coords = ("<<ClusterWorld.x()<<","<<ClusterWorld.y()<<","<<ClusterWorld.z()<<")"<<std::endl;
+
+CylinderGeom_Mvtx::get_local_from_world_coords(const Surface& surface,
+                                               ActsGeometry* tGeometry,
+                                               TVector3 world)
+   } else {
+      //INTT hit
+      =
+
+   }
+
+}
