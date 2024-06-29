@@ -1,2 +1,2 @@
 # silicon_alignment
-Alignment code for sPHENIX experiment silicon detector
+Alignment code based on AI method for sPHENIX experiment silicon detector
