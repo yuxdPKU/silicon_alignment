@@ -21,6 +21,15 @@
 #include "YMultiLayerPerceptron.h"
 #include "YFitModel.h"
 
+#include <trackbase/MvtxDefs.h>
+#include <mvtx/CylinderGeom_Mvtx.h>
+#include <trackbase/InttDefs.h>
+#include <intt/CylinderGeomIntt.h>
+#include <g4detectors/PHG4CylinderGeomContainer.h>
+
+#include <trackbase/ActsGeometry.h>
+#include <trackbase/ActsSurfaceMaps.h>
+
 //____________________________________________________________________
 //
 // YAlignment
@@ -86,6 +95,13 @@ public:
    void ComputeCorrectionFunction();   
    
    void AddSensorSet(YSensorSet sensorset);
+
+   void SetActsGeom(ActsGeometry *geom) {actsGeom = geom;}
+   ActsGeometry* GetActsGeom() {return actsGeom;}
+   void SetGeantGeomMVTX(PHG4CylinderGeomContainer *geom) {geantGeom_mvtx = geom;}
+   PHG4CylinderGeomContainer* GetGeantGeomMVTX() {return geantGeom_mvtx;}
+   void SetGeantGeomINTT(PHG4CylinderGeomContainer *geom) {geantGeom_intt = geom;}
+   PHG4CylinderGeomContainer* GetGeantGeomINTT() {return geantGeom_intt;}
 
 private:
    TString				fSourceDataName;		// String containing the source file name 
@@ -173,6 +189,10 @@ private:
    TBranch        *b_event_P3;   //!
    TBranch        *b_event_evno;   //!
    TBranch        *b_event_ntracks;   //!
+
+   ActsGeometry *actsGeom = nullptr;
+   PHG4CylinderGeomContainer *geantGeom_mvtx;
+   PHG4CylinderGeomContainer *geantGeom_intt;
 
 };
 

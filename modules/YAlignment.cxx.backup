@@ -435,7 +435,61 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                col_max = 5;       
             }
          }
-         
+
+	double ip1=0, fp1=0;
+	double ip2=0, fp2=0;
+	double z_loc;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords_min = layergeom->get_local_coords_from_pixel(row_min, col_min); // cm, sPHENIX unit
+		ip1 = local_coords_min.x(); //local x
+		ip2 = local_coords_min.z(); //local y
+		TVector3 local_coords_max = layergeom->get_local_coords_from_pixel(row_max, col_max); // cm, sPHENIX unit
+		fp1 = local_coords_max.x(); //local x
+		fp2 = local_coords_max.z(); //local y
+		TVector3 local_coords_mid = layergeom->get_local_coords_from_pixel(row_mid, col_mid); // cm, sPHENIX unit
+		TVector2 local_coords_mid_use;
+		local_coords_mid_use.SetX(local_coords_mid.x());
+		local_coords_mid_use.SetY(local_coords_mid.z());
+		TVector3 glocal_coords_mid = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_mid_use);; // cm, sPHENIX unit
+		z_loc = glocal_coords_mid.z();
+		z_loc_max[layer] = std::max(z_loc_max[layer],z_loc);
+		z_loc_min[layer] = std::min(z_loc_min[layer],z_loc);
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, row_min, col_min, local); // cm, sPHENIX unit
+		ip1 = local[1]; //local x
+		ip2 = local[2]; //local y
+		layergeom->find_strip_center_localcoords(m_ladderz, row_max, col_max, local); // cm, sPHENIX unit
+		fp1 = local[1]; //local x
+		fp2 = local[2]; //local y
+		layergeom->find_strip_center_localcoords(m_ladderz, row_mid, col_mid, local); // cm, sPHENIX unit
+		TVector2 local_coords_mid_use;
+		local_coords_mid_use.SetX(local[1]);
+		local_coords_mid_use.SetY(local[2]);
+		TVector3 glocal_coords_mid = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_mid_use);; // cm, sPHENIX unit
+		z_loc = glocal_coords_mid.z();
+		z_loc_max[layer] = std::max(z_loc_max[layer],z_loc);
+		z_loc_min[layer] = std::min(z_loc_min[layer],z_loc);
+	}
+
+/*
          double ip1 = yGEOM->GToS(iID,yGEOM->LToG(iID,row_min,col_min)(0),	
  				      yGEOM->LToG(iID,row_min,col_min)(1),
                               	      yGEOM->LToG(iID,row_min,col_min)(2))(0);
@@ -448,6 +502,7 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
          double fp2 = yGEOM->GToS(iID,yGEOM->LToG(iID,row_max,col_max)(0),	
                                       yGEOM->LToG(iID,row_max,col_max)(1),
                                       yGEOM->LToG(iID,row_max,col_max)(2))(1);               
+*/
          input_Max[0][iID]=std::max(ip1,fp1);
          input_Min[0][iID]=std::min(ip1,fp1); 
          input_Max[1][iID]=std::max(ip2,fp2);
@@ -459,9 +514,11 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                                                         <<input_Max[1][iID]<<" "<<input_Min[1][iID]<<" Norm (s1, s2) "<<norm[0][iID]<<" "<<norm[1][iID]<<std::endl;
 #endif
 
+/*
          double z_loc = yGEOM->LToG(iID,row_mid,col_mid)(2);
          z_loc_max[layer] = std::max(z_loc_max[layer],z_loc);
          z_loc_min[layer] = std::min(z_loc_min[layer],z_loc);
+*/
       }  
                                     //0  1    2    3    4     5     6      7
       int SensorBoundary[nLAYER + 1] = { 0, 108, 252, 432, 480, 528, 592, 656 };
@@ -646,10 +703,59 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                                     
                   if(std::abs(s_track->s1[c])>1000 || std::abs(s_track->s2[c])>1000 || std::abs(s_track->s3[c])>1000) continue;
                   double pixmid = c < 3 ? 0.5 : 0;
+
+/*
                   TVector3 sensorS  = yGEOM->GToS(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),
                                       yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c]+pixmid,s_track->col[c]+pixmid)(0),
                                       yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c]+pixmid,s_track->col[c]+pixmid)(1),
                                       yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c]+pixmid,s_track->col[c]+pixmid)(2));
+*/
+
+		int iID = yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]);
+         	int layer = yGEOM->GetLayer(iID);
+		TVector3 sensorS, sensorSG;
+
+		if (layer<=2){
+			//mvtx hit
+			int m_stave = GetStave(iID);
+			int m_chip  = GetChipIdInStave(iID);
+			auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+			int row = s_track->row[c]+pixmid;
+			int col = s_track->col[c]+pixmid;
+			TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+			sensorS.SetX(local_coords.x()); // local X
+			sensorS.SetY(local_coords.z()); // local Y
+			sensorS.SetZ(local_coords.y()); // local Z (meaningless)
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local_coords.x());
+			local_coords_use.SetY(local_coords.z());
+			sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		}
+		else if (layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int m_ladderphi = GetStave(iID);
+			int m_ladderz   = GetChipIdInStave(iID);
+			auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+			int row = s_track->row[c]+pixmid;
+			int col = s_track->col[c]+pixmid;
+			double local[3] = {0.0, 0.0, 0.0};
+			//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+			layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+			sensorS.SetX(local[1]); // local X
+			sensorS.SetY(local[2]); // local Y
+			sensorS.SetZ(local[0]); // local Z (meaningless)
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local[1]);
+			local_coords_use.SetY(local[2]);
+			sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		}
 
                   double delta = 0;
                   /*               
@@ -670,7 +776,7 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                   }
                   */
              
-                  TVector3 sensorSG = yGEOM->SToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),sensorS(0),sensorS(1),sensorS(2));
+                  //TVector3 sensorSG = yGEOM->SToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),sensorS(0),sensorS(1),sensorS(2));
 #ifdef YALIGNDEBUG
                   std::cout<<" LAYER(S  Check) "<<x<<" "<<c<<" "<<s_track->Layer[c]<<" "<<sensorS(0)<<" "<<sensorS(1)<<" "<<sensorS(2)<<std::endl;
                   std::cout<<" LAYER(SG Check) "<<x<<" "<<c<<" "<<s_track->Layer[c]<<" "<<sensorSG(0)<<" "<<sensorSG(1)<<" "<<sensorSG(2)<<std::endl;            
@@ -718,10 +824,58 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                for(int c = 0; c < nLAYER; c++){  
                   if(validhit[c]==true){                    
                      double pixmid = c < 3 ? 0.5 : 0;
+/*
                      TVector3 sensorS = yGEOM->GToS(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),
                                         yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c] + pixmid,s_track->col[c] + pixmid)(0),
                                         yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c] + pixmid,s_track->col[c] + pixmid)(1),
                                         yGEOM->LToG(yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]),s_track->row[c] + pixmid,s_track->col[c] + pixmid)(2));
+*/
+
+		int iID = yGEOM->GetChipIndex(s_track->Layer[c], s_track->Stave[c], s_track->Chip[c]);
+         	int layer = yGEOM->GetLayer(iID);
+		TVector3 sensorS, sensorSG;
+
+		if (layer<=2){
+			//mvtx hit
+			int m_stave = GetStave(iID);
+			int m_chip  = GetChipIdInStave(iID);
+			auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+			int row = s_track->row[c]+pixmid;
+			int col = s_track->col[c]+pixmid;
+			TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+			sensorS.SetX(local_coords.x()); // local X
+			sensorS.SetY(local_coords.z()); // local Y
+			sensorS.SetZ(local_coords.y()); // local Z (meaningless)
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local_coords.x());
+			local_coords_use.SetY(local_coords.z());
+			sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		}
+		else if (layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int m_ladderphi = GetStave(iID);
+			int m_ladderz   = GetChipIdInStave(iID);
+			auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+			int row = s_track->row[c]+pixmid;
+			int col = s_track->col[c]+pixmid;
+			double local[3] = {0.0, 0.0, 0.0};
+			//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+			layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+			sensorS.SetX(local[1]); // local X
+			sensorS.SetY(local[2]); // local Y
+			sensorS.SetZ(local[0]); // local Z (meaningless)
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local[1]);
+			local_coords_use.SetY(local[2]);
+			sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		}
 
                      double delta = 0;
                      /*               
@@ -783,11 +937,56 @@ void YAlignment::PrepareData(int nentries=10000, int parallel = 0, bool build = 
                      b_track->col[c]     = (float)-9999;                     
                   }
 #ifdef YALIGNDEBUG
+		int mm_iID = b_track->ChipID[c];
+         	int mm_layer = yGEOM->GetLayer(mm_iID);
+		double global_x, global_y, global_z;
+
+		if (mm_layer<=2){
+			//mvtx hit
+			int mm_stave = GetStave(mm_iID);
+			int mm_chip  = GetChipIdInStave(mm_iID);
+			auto mm_hitsetkey = MvtxDefs::genHitSetKey(mm_layer, mm_stave, mm_chip, 0);
+			auto mm_surface = actsGeom->maps().getSiliconSurface(mm_hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(mm_layer));
+			int mm_row = s_track->row[c];
+			int mm_col = s_track->col[c];
+			TVector3 local_coords = layergeom->get_local_coords_from_pixel(mm_row, mm_col); // cm, sPHENIX unit
+			TVector2 mm_local_coords_use;
+			mm_local_coords_use.SetX(local_coords.x());
+			mm_local_coords_use.SetY(local_coords.z());
+			TVector3 global_coords = layergeom->get_world_from_local_coords(mm_surface, actsGeom, mm_local_coords_use); // cm, sPHENIX unit
+			global_x = global_coords.x();
+			global_y = global_coords.y();
+			global_z = global_coords.z();
+		}
+		else if (mm_layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int mm_ladderphi = GetStave(mm_iID);
+			int mm_ladderz   = GetChipIdInStave(mm_iID);
+			auto mm_hitsetkey = InttDefs::genHitSetKey(mm_layer, mm_ladderz, mm_ladderphi, 0);
+			auto mm_surface = actsGeom->maps().getSiliconSurface(mm_hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(mm_layer));
+			int mm_row = s_track->row[c];
+			int mm_col = s_track->col[c];
+			double mm_local[3] = {0.0, 0.0, 0.0};
+			//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+			layergeom->find_strip_center_localcoords(mm_ladderz, mm_row, mm_col, mm_local); // cm, sPHENIX unit
+			TVector2 mm_local_coords_use;
+			mm_local_coords_use.SetX(mm_local[1]);
+			mm_local_coords_use.SetY(mm_local[2]);
+			TVector3 global_coords = layergeom->get_world_from_local_coords(mm_surface, actsGeom, mm_local_coords_use); // cm, sPHENIX unit
+			global_x = global_coords.x();
+			global_y = global_coords.y();
+			global_z = global_coords.z();
+		}
                   std::cout<<" LAYER(N) "<<c<<" "<<b_track->s1[c]<<" "<<b_track->s2[c]<<" "<<b_track->s3[c]<<" "<<b_track->Stave[c]<<" "<<b_track->Chip[c]<<" "<<b_track->ChipID[c]<<std::endl;
                   std::cout<<" LAYER(G) "<<c<<" "<<s_track->s1[c]<<" "<<s_track->s2[c]<<" "<<s_track->s3[c]<<std::endl;
-                  std::cout<<" LAYER(P) "<<c<<" "<<yGEOM->LToG(b_track->ChipID[c],s_track->row[c],s_track->col[c])(0)<<" "
-                                                 <<yGEOM->LToG(b_track->ChipID[c],s_track->row[c],s_track->col[c])(1)<<" "
-                                                 <<yGEOM->LToG(b_track->ChipID[c],s_track->row[c],s_track->col[c])(2)<<std::endl;
+                  std::cout<<" LAYER(P) "<<c<<" "<<global_x<<" "
+                                                 <<global_y<<" "
+                                                 <<global_z<<std::endl;
 #endif
                }   
             }
@@ -863,7 +1062,46 @@ double YAlignment::GetEventWeight(EventData* event, double* z_loc_max, double* z
       for(int layer = 0; layer < nLAYER; layer++){           
          double c0 = 0.1;
          double c1 = 0.9*(2/TMath::Abs(z_loc_max[layer]-z_loc_min[layer]));
-         double z_loc = yGEOM->LToG(chipID[layer],256,512)(2);
+         //double z_loc = yGEOM->LToG(chipID[layer],256,512)(2);
+	 double z_loc;
+
+	int iID = chipID[layer];
+	float row = 256;
+	float col = 512;
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local_coords.x());
+		local_coords_use.SetY(local_coords.z());
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local[1]);
+		local_coords_use.SetY(local[2]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
              
          Weight_Hit[layer] = c0 + c1*TMath::Abs(z_loc);
          Weight_Track     += Weight_Hit[layer];
@@ -977,6 +1215,7 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
    }
 
    for(int iID=0; iID<nSensors; iID++){
+/*
       double ip1 = yGEOM->GToS(iID,yGEOM->LToG(iID,0,0)(0),	
  				   yGEOM->LToG(iID,0,0)(1),
                         	   yGEOM->LToG(iID,0,0)(2))(0);
@@ -989,6 +1228,43 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
       double fp2 = yGEOM->GToS(iID,yGEOM->LToG(iID,511,1023)(0),	
                                    yGEOM->LToG(iID,511,1023)(1),
                                    yGEOM->LToG(iID,511,1023)(2))(1);               
+*/
+	double ip1=0, fp1=0;
+	double ip2=0, fp2=0;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords_min = layergeom->get_local_coords_from_pixel(0, 0); // cm, sPHENIX unit
+		ip1 = local_coords_min.x(); //local x
+		ip2 = local_coords_min.z(); //local y
+		TVector3 local_coords_max = layergeom->get_local_coords_from_pixel(511, 1023); // cm, sPHENIX unit
+		fp1 = local_coords_max.x(); //local x
+		fp2 = local_coords_max.z(); //local y
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, 0, 0, local); // cm, sPHENIX unit
+		ip1 = local[1]; //local x
+		ip2 = local[2]; //local y
+		layergeom->find_strip_center_localcoords(m_ladderz, 511, 1023, local); // cm, sPHENIX unit
+		fp1 = local[1]; //local x
+		fp2 = local[2]; //local y
+	}
+
       input_Max[0][iID]=std::max(ip1,fp1);
       input_Min[0][iID]=std::min(ip1,fp1); 
       input_Max[1][iID]=std::max(ip2,fp2);
@@ -1001,7 +1277,46 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
 #endif
 
       int layer = yGEOM->GetLayer(iID); 
-      double z_loc = yGEOM->LToG(iID,256,512)(2);
+      //double z_loc = yGEOM->LToG(iID,256,512)(2);
+      double z_loc;
+
+	float row = 256;
+	float col = 512;
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local_coords.x());
+		local_coords_use.SetY(local_coords.z());
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local[1]);
+		local_coords_use.SetY(local[2]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
+
       z_loc_max[layer] = std::max(z_loc_max[layer],z_loc);
       z_loc_min[layer] = std::min(z_loc_min[layer],z_loc);
    }  
@@ -1051,13 +1366,64 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
             if(s_track->ChipID[c]<0) continue;
             if(s_track->Layer[c]>=0) totselect++;            
             if(std::abs(s_track->s1[c])>1000 || std::abs(s_track->s2[c])>1000 || std::abs(s_track->s3[c])>1000) continue;
-            TVector3 sensorS  = yGEOM->GToS(s_track->ChipID[c],s_track->s1[c],s_track->s2[c],s_track->s3[c]);
+            //TVector3 sensorS  = yGEOM->GToS(s_track->ChipID[c],s_track->s1[c],s_track->s2[c],s_track->s3[c]);
             //if(s_track->ChipID[c]==4){ //layer 0, stave 0
             //   std::cout<<" LAYER(D) "<<c<<" "<<sensorS.X()<<" "<<sensorS.Y()<<" "<<sensorS.Z()<<std::endl;
             //   TVector3 dsensorS(0.05,0,0);
             //   sensorS = sensorS - dsensorS;
             //}
-            TVector3 sensorSG = yGEOM->SToG(s_track->ChipID[c],sensorS(0),sensorS(1),sensorS(2));
+            //TVector3 sensorSG = yGEOM->SToG(s_track->ChipID[c],sensorS(0),sensorS(1),sensorS(2));
+
+	int iID = s_track->ChipID[c];
+ 	int layer = yGEOM->GetLayer(iID);
+	TVector3 sensorS, sensorSG;
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(s_track->s1[c]);
+		global.SetY(s_track->s2[c]);
+		global.SetZ(s_track->s3[c]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sensorS.SetX(local.x()); // local X
+		sensorS.SetY(local.z()); // local Y
+		sensorS.SetZ(local.y()); // local Z (meaningless)
+		TVector2 local2;
+		local2.SetX(sensorS(0));
+		local2.SetY(sensorS(1));
+		sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local2); // cm, sPHENIX unit
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(s_track->s1[c]);
+		global.SetY(s_track->s2[c]);
+		global.SetZ(s_track->s3[c]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sensorS.SetX(local.y()); // local X [1]
+		sensorS.SetY(local.z()); // local Y [2]
+		sensorS.SetZ(local.x()); // local Z (meaningless) [0]
+		TVector2 local2;
+		local2.SetX(sensorS(0));
+		local2.SetY(sensorS(1));
+		sensorSG = layergeom->get_world_from_local_coords(surface, actsGeom, local2); // cm, sPHENIX unit
+	}
+
 #ifdef YALIGNDEBUG
             std::cout<<" LAYER(S Check) "<<x<<" "<<c<<" "<<s_track->Layer[c]<<" "<<sensorS(0)<<" "<<sensorS(1)<<" "<<sensorS(2)<<std::endl;
 #endif
@@ -1108,7 +1474,49 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
          //b_track->SetIndex(j); 
          //std::cout<<"sEvent : "<<sel_ievent<<" tEvent : "<<a<<std::endl;
          for(int c = 0; c < nLAYER; c++){      
-            TVector3 sensorS = yGEOM->GToS(s_track->ChipID[c],s_track->s1[c],s_track->s2[c],s_track->s3[c]);
+            //TVector3 sensorS = yGEOM->GToS(s_track->ChipID[c],s_track->s1[c],s_track->s2[c],s_track->s3[c]);
+
+	int iID = s_track->ChipID[c];
+ 	int layer = yGEOM->GetLayer(iID);
+	TVector3 sensorS;
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(s_track->s1[c]);
+		global.SetY(s_track->s2[c]);
+		global.SetZ(s_track->s3[c]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sensorS.SetX(local.x()); // local X
+		sensorS.SetY(local.z()); // local Y
+		sensorS.SetZ(local.y()); // local Z (meaningless)
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(s_track->s1[c]);
+		global.SetY(s_track->s2[c]);
+		global.SetZ(s_track->s3[c]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sensorS.SetX(local.y()); // local X [1]
+		sensorS.SetY(local.z()); // local Y [2]
+		sensorS.SetZ(local.x()); // local Z (meaningless) [0]
+	}
             //if(s_track->ChipID[c]<9){ //layer 0, stave 0
             //   std::cout<<" LAYER(D) "<<c<<" "<<sensorS.X()<<" "<<sensorS.Y()<<" "<<sensorS.Z()<<std::endl;
             //   TVector3 dsensorS(0.05,0,0); //for an example.
@@ -1183,6 +1591,9 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
    fMLPNetwork = new YMultiLayerPerceptron(fNetworkStructure,fInputTree,"(evno%10)>=0&&(evno%10)<6","(evno%10)>=6&&(evno%10)<8");
    fMLPNetwork->SetNpronged(nTrackMax);  
    fMLPNetwork->SetFitModel(FITMODEL);
+   fMLPNetwork->SetActsGeom(actsGeom);
+   fMLPNetwork->SetGeantGeomMVTX(geantGeom_mvtx);
+   fMLPNetwork->SetGeantGeomINTT(geantGeom_intt);
  
    fAnalyzeFile = nullptr;   
    fAnalyzeFile = new TFile(XXXXanalyse_name,"recreate");   
@@ -1320,12 +1731,67 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
             pos_S2[1][layer] = (mlpInput[layer][1] + fNorm_shift)*norm[1][chipID[layer]] + input_Min[1][chipID[layer]] + mlpOutput[layer][1];
             pos_S3[1][layer] = mlpOutput[layer][2];             
                        
+/*
             pos_GX[0][layer] = yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).X();
             pos_GY[0][layer] = yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).Y();
             pos_GZ[0][layer] = yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).Z();                               
             pos_GX[1][layer] = yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).X();
             pos_GY[1][layer] = yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).Y();
             pos_GZ[1][layer] = yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).Z();     
+*/
+
+	int iID = chipID[layer];
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(pos_S1[0][layer]);
+		local.SetY(pos_S2[0][layer]);
+		local.SetZ(pos_S3[0][layer]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		pos_GX[0][layer] = global.X();
+		pos_GY[0][layer] = global.Y();
+		pos_GZ[0][layer] = global.Z();
+
+		local.SetX(pos_S1[1][layer]);
+		local.SetY(pos_S2[1][layer]);
+		local.SetZ(pos_S3[1][layer]);
+		global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		pos_GX[1][layer] = global.X();
+		pos_GY[1][layer] = global.Y();
+		pos_GZ[1][layer] = global.Z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(pos_S1[0][layer]);
+		local.SetY(pos_S2[0][layer]);
+		local.SetZ(pos_S3[0][layer]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		pos_GX[0][layer] = global.X();
+		pos_GY[0][layer] = global.Y();
+		pos_GZ[0][layer] = global.Z();
+
+		local.SetX(pos_S1[1][layer]);
+		local.SetY(pos_S2[1][layer]);
+		local.SetZ(pos_S3[1][layer]);
+		global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		pos_GX[1][layer] = global.X();
+		pos_GY[1][layer] = global.Y();
+		pos_GZ[1][layer] = global.Z();
+	}
 
             pos_GC[(3*layer)+0] = pos_GX[1][layer];
             pos_GC[(3*layer)+1] = pos_GY[1][layer];
@@ -1340,12 +1806,60 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
             //std::cout << mlpOutput[layer][0] <<" "<<  mlpOutput[layer][1] <<" "<< mlpOutput[layer][2] <<std::endl;
             //std::cout << pos_S1[1][layer] <<" "<< pos_S2[1][layer] <<" "<< pos_S3[1][layer] <<std::endl;     
 
+/*
             pos_Sx[layer]   = yGEOM->LToG(chipID[layer],256,512).X();
             pos_Sy[layer]   = yGEOM->LToG(chipID[layer],256,512).Y();
             pos_Sr[layer]   = TMath::Sqrt(pos_Sx[layer]*pos_Sx[layer] + pos_Sy[layer]*pos_Sy[layer]);
             pos_Sphi[layer] = TMath::ATan2(pos_Sy[layer],pos_Sx[layer]);
             pos_Sphi[layer] = ( pos_Sphi[layer] >= 0 ) ? pos_Sphi[layer] : 2*TMath::ATan2(0,-1) + pos_Sphi[layer];
             pos_Sz[layer]   = yGEOM->LToG(chipID[layer],256,512).Z();              
+*/
+
+		float row = 256;
+		float col = 512;
+
+		if (layer<=2){
+			//mvtx hit
+			int m_stave = GetStave(iID);
+			int m_chip  = GetChipIdInStave(iID);
+			auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+			TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local_coords.x());
+			local_coords_use.SetY(local_coords.z());
+			TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+			pos_Sx[layer]   = global.x();
+			pos_Sy[layer]   = global.y();
+			pos_Sz[layer]   = global.z();
+		}
+		else if (layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int m_ladderphi = GetStave(iID);
+			int m_ladderz   = GetChipIdInStave(iID);
+			auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+			double local[3] = {0.0, 0.0, 0.0};
+			//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+			layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local[1]);
+			local_coords_use.SetY(local[2]);
+			TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+			pos_Sx[layer]   = global.x();
+			pos_Sy[layer]   = global.y();
+			pos_Sz[layer]   = global.z();
+		}
+
+            	pos_Sr[layer]   = TMath::Sqrt(pos_Sx[layer]*pos_Sx[layer] + pos_Sy[layer]*pos_Sy[layer]);
+            	pos_Sphi[layer] = TMath::ATan2(pos_Sy[layer],pos_Sx[layer]);
+            	pos_Sphi[layer] = ( pos_Sphi[layer] >= 0 ) ? pos_Sphi[layer] : 2*TMath::ATan2(0,-1) + pos_Sphi[layer];
+
          }
            
          //std::cout<<std::endl;          
@@ -1478,12 +1992,69 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
                
             if(layer>=nLAYER) continue;    
                                                                 
+/*
             pos_1[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(0);
             pos_2[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(1);
             pos_3[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(2);
             est_1[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(0);
             est_2[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(1);
             est_3[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(2);
+*/
+
+	int iID = chipID[layer];
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(pos_1[layer][0]);
+		global.SetY(pos_2[layer][0]);
+		global.SetZ(pos_3[layer][0]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		pos_1[layer][1] = local.x(); // local X
+		pos_2[layer][1] = local.z(); // local Y
+		pos_3[layer][1] = local.y(); // local Z (meaningless)
+
+		global.SetX(est_1[layer][0]);
+		global.SetY(est_2[layer][0]);
+		global.SetZ(est_3[layer][0]);
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		est_1[layer][1] = local.x(); // local X
+		est_2[layer][1] = local.z(); // local Y
+		est_3[layer][1] = local.y(); // local Z (meaningless)
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(pos_1[layer][0]);
+		global.SetY(pos_2[layer][0]);
+		global.SetZ(pos_3[layer][0]);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		pos_1[layer][1] = local.y(); // local X [1]
+		pos_2[layer][1] = local.z(); // local Y [2]
+		pos_3[layer][1] = local.x(); // local Z (meaningless) [0]
+
+		global.SetX(est_1[layer][0]);
+		global.SetY(est_2[layer][0]);
+		global.SetZ(est_3[layer][0]);
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		est_1[layer][1] = local.y(); // local X [1]
+		est_2[layer][1] = local.z(); // local Y [2]
+		est_3[layer][1] = local.x(); // local Z (meaningless) [0]
+	}
 #ifdef YALIGNDEBUG        
             std::cout<<" YAlignment :: Slayer pos1 est1 "<<pos_1[layer][1]<<" "<<est_1[layer][1]<<std::endl;
             //if(TMath::Abs(pos_1[layer][1]-est_1[layer][1])>0.5) std::cout<<" ZFitError :: Slayer pos1 est1 "<<pos_1[layer][1] - est_1[layer][1]<<std::endl;
@@ -1494,7 +2065,44 @@ void YAlignment::LoadData(int nentries=10000, int parallel = 0, bool build = tru
             //z_loc_min[layer]
             double c0 = 0.1;
             double c1 = 0.9*(2/TMath::Abs(z_loc_max[layer]-z_loc_min[layer]));
-            double z_loc = yGEOM->LToG(chipID[layer],256,512)(2);
+            //double z_loc = yGEOM->LToG(chipID[layer],256,512)(2);
+
+	float row = 256;
+	float col = 512;
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local_coords.x());
+		local_coords_use.SetY(local_coords.z());
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local[1]);
+		local_coords_use.SetY(local[2]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		z_loc = global.z();
+	}
              
             Weight_Hit[layer] = c0 + c1*TMath::Abs(z_loc);
             Weight_Track     += Weight_Hit[layer];
@@ -1657,6 +2265,12 @@ void YAlignment::TrainMLP(YMultiLayerPerceptron::ELearningMethod method = YMulti
    fMLPNetwork->SetNpronged(nTrackMax);  
    std::cout<<" YAlignment::TrainMLP SetFitModel : "<<FITMODEL<<std::endl;
    fMLPNetwork->SetFitModel(FITMODEL);
+   std::cout<<" YAlignment::TrainMLP SetActsGeom"<<std::endl;
+   fMLPNetwork->SetActsGeom(actsGeom);
+   std::cout<<" YAlignment::TrainMLP SetGeantGeomMVTX"<<std::endl;
+   fMLPNetwork->SetGeantGeomMVTX(geantGeom_mvtx);
+   std::cout<<" YAlignment::TrainMLP SetGeantGeomINTT"<<std::endl;
+   fMLPNetwork->SetGeantGeomINTT(geantGeom_intt);
    if(fSplitReferenceSensor==-1){
       fMLPNetwork->SetSplitReferenceSensor(-1, 0);
    } else {
@@ -1701,6 +2315,9 @@ void YAlignment::EvaluateCostMLP(int step, int core, YMultiLayerPerceptron::ELea
    fMLPNetwork->SetFitModel(FITMODEL); 
    fMLPNetwork->SetTau(3);  
    fMLPNetwork->SetLearningMethod(method);
+   fMLPNetwork->SetActsGeom(actsGeom);
+   fMLPNetwork->SetGeantGeomMVTX(geantGeom_mvtx);
+   fMLPNetwork->SetGeantGeomINTT(geantGeom_intt);
 
    TString prevWeightSet = "./MLPTrain_Step" + TString::Itoa(step,10) + "/weights/weights_core" + TString::Itoa(core,10) +".txt";
    fMLPNetwork->SetPrevWeight(prevWeightSet);
@@ -1732,7 +2349,10 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
    fMLPNetwork = new YMultiLayerPerceptron(fNetworkStructure,fInputTree,"(evno%10)>=0&&(evno%10)<6","(evno%10)>=6&&(evno%10)<8");
    fMLPNetwork->SetNpronged(nTrackMax);  
    fMLPNetwork->SetFitModel(FITMODEL);
- 
+   fMLPNetwork->SetActsGeom(actsGeom);
+   fMLPNetwork->SetGeantGeomMVTX(geantGeom_mvtx);
+   fMLPNetwork->SetGeantGeomINTT(geantGeom_intt);
+
    fAnalyzeFile = nullptr;   
    fAnalyzeFile = new TFile(XXXXanalyse_name,"recreate");   
    
@@ -1757,6 +2377,7 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
    }
 
    for(int iID=0; iID<nSensors; iID++){
+/*
       double ip1 = yGEOM->GToS(iID,yGEOM->LToG(iID,0,0)(0),	
  				   yGEOM->LToG(iID,0,0)(1),
                         	   yGEOM->LToG(iID,0,0)(2))(0);
@@ -1769,6 +2390,44 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
       double fp2 = yGEOM->GToS(iID,yGEOM->LToG(iID,511,1023)(0),	
                                    yGEOM->LToG(iID,511,1023)(1),
                                    yGEOM->LToG(iID,511,1023)(2))(1);               
+*/
+
+	double ip1=0, fp1=0;
+	double ip2=0, fp2=0;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords_min = layergeom->get_local_coords_from_pixel(0, 0); // cm, sPHENIX unit
+		ip1 = local_coords_min.x(); //local x
+		ip2 = local_coords_min.z(); //local y
+		TVector3 local_coords_max = layergeom->get_local_coords_from_pixel(511, 1023); // cm, sPHENIX unit
+		fp1 = local_coords_max.x(); //local x
+		fp2 = local_coords_max.z(); //local y
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, 0, 0, local); // cm, sPHENIX unit
+		ip1 = local[1]; //local x
+		ip2 = local[2]; //local y
+		layergeom->find_strip_center_localcoords(m_ladderz, 511, 1023, local); // cm, sPHENIX unit
+		fp1 = local[1]; //local x
+		fp2 = local[2]; //local y
+	}
+
       input_Max[0][iID]=std::max(ip1,fp1);
       input_Min[0][iID]=std::min(ip1,fp1); 
       input_Max[1][iID]=std::max(ip2,fp2);
@@ -1934,12 +2593,74 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
                pos_S2[1][layer] = hitUpdate[layer]==true ? (mlpInput[layer][1] + fNorm_shift)*norm[1][chipID[layer]] + input_Min[1][chipID[layer]] + mlpOutput[layer][1] : -9999;
                pos_S3[1][layer] = hitUpdate[layer]==true ? mlpOutput[layer][2] : -9999;             
                        
+/*
                pos_GX[0][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).X() : -9999;
                pos_GY[0][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).Y() : -9999;
                pos_GZ[0][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[0][layer],pos_S2[0][layer],pos_S3[0][layer]).Z() : -9999;                               
                pos_GX[1][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).X() : -9999;
                pos_GY[1][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).Y() : -9999;
                pos_GZ[1][layer] = hitUpdate[layer]==true ? yGEOM->SToG(chipID[layer],pos_S1[1][layer],pos_S2[1][layer],pos_S3[1][layer]).Z() : -9999;     
+*/
+
+	int iID = chipID[layer];
+	double global0_x, global0_y, global0_z;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(pos_S1[0][layer]);
+		local.SetY(pos_S2[0][layer]);
+		local.SetZ(pos_S3[0][layer]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		global0_x = global.X();
+		global0_y = global.Y();
+		global0_z = global.Z();
+
+		local.SetX(pos_S1[1][layer]);
+		local.SetY(pos_S2[1][layer]);
+		local.SetZ(pos_S3[1][layer]);
+		global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		global1_x = global.X();
+		global1_y = global.Y();
+		global1_z = global.Z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(pos_S1[0][layer]);
+		local.SetY(pos_S2[0][layer]);
+		local.SetZ(pos_S3[0][layer]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		global0_x = global.X();
+		global0_y = global.Y();
+		global0_z = global.Z();
+
+		local.SetX(pos_S1[1][layer]);
+		local.SetY(pos_S2[1][layer]);
+		local.SetZ(pos_S3[1][layer]);
+		global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		global1_x = global.X();
+		global1_y = global.Y();
+		global1_z = global.Z();
+	}
+               pos_GX[0][layer] = hitUpdate[layer]==true ? global0_x : -9999;
+               pos_GY[0][layer] = hitUpdate[layer]==true ? global0_y : -9999;
+               pos_GZ[0][layer] = hitUpdate[layer]==true ? global0_z : -9999;                               
+               pos_GX[1][layer] = hitUpdate[layer]==true ? global1_x : -9999;
+               pos_GY[1][layer] = hitUpdate[layer]==true ? global1_y : -9999;
+               pos_GZ[1][layer] = hitUpdate[layer]==true ? global1_z : -9999;     
 
                pos_GC[(3*layer)+0] = pos_GX[1][layer];
                pos_GC[(3*layer)+1] = pos_GY[1][layer];
@@ -1952,12 +2673,62 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
                std::cout << mlpOutput[layer][0] <<" "<<  mlpOutput[layer][1] <<" "<< mlpOutput[layer][2] <<std::endl;
                std::cout << pos_S1[1][layer] <<" "<< pos_S2[1][layer] <<" "<< pos_S3[1][layer] <<std::endl;  
 
+/*
                pos_Sx[layer]   = hitUpdate[layer]==true ? yGEOM->LToG(chipID[layer],256,512).X() : -9999;
                pos_Sy[layer]   = hitUpdate[layer]==true ? yGEOM->LToG(chipID[layer],256,512).Y() : -9999;
                pos_Sr[layer]   = hitUpdate[layer]==true ? TMath::Sqrt(pos_Sx[layer]*pos_Sx[layer] + pos_Sy[layer]*pos_Sy[layer]) : -9999;
                pos_Sphi[layer] = hitUpdate[layer]==true ? TMath::ATan2(pos_Sy[layer],pos_Sx[layer]) : -9999;
                pos_Sphi[layer] = hitUpdate[layer]==true ? ( pos_Sphi[layer] >= 0 ) ? pos_Sphi[layer] : 2*TMath::ATan2(0,-1) + pos_Sphi[layer] : -9999;
                pos_Sz[layer]   = hitUpdate[layer]==true ? yGEOM->LToG(chipID[layer],256,512).Z() : -9999;
+*/
+
+		float row = 256;
+		float col = 512;
+		double global_x, global_y, global_z;
+
+		if (layer<=2){
+			//mvtx hit
+			int m_stave = GetStave(iID);
+			int m_chip  = GetChipIdInStave(iID);
+			auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+			TVector3 local_coords = layergeom->get_local_coords_from_pixel(row, col); // cm, sPHENIX unit
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local_coords.x());
+			local_coords_use.SetY(local_coords.z());
+			TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+			global_x = global.x();
+			global_y = global.y();
+			global_z = global.z();
+		}
+		else if (layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int m_ladderphi = GetStave(iID);
+			int m_ladderz   = GetChipIdInStave(iID);
+			auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+			double local[3] = {0.0, 0.0, 0.0};
+			//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+			layergeom->find_strip_center_localcoords(m_ladderz, row, col, local); // cm, sPHENIX unit
+			TVector2 local_coords_use;
+			local_coords_use.SetX(local[1]);
+			local_coords_use.SetY(local[2]);
+			TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+			global_x = global.x();
+			global_y = global.y();
+			global_z = global.z();
+		}
+               pos_Sx[layer]   = hitUpdate[layer]==true ? global_x : -9999;
+               pos_Sy[layer]   = hitUpdate[layer]==true ? global_y : -9999;
+               pos_Sr[layer]   = hitUpdate[layer]==true ? TMath::Sqrt(pos_Sx[layer]*pos_Sx[layer] + pos_Sy[layer]*pos_Sy[layer]) : -9999;
+               pos_Sphi[layer] = hitUpdate[layer]==true ? TMath::ATan2(pos_Sy[layer],pos_Sx[layer]) : -9999;
+               pos_Sphi[layer] = hitUpdate[layer]==true ? ( pos_Sphi[layer] >= 0 ) ? pos_Sphi[layer] : 2*TMath::ATan2(0,-1) + pos_Sphi[layer] : -9999;
+               pos_Sz[layer]   = hitUpdate[layer]==true ? global_z : -9999;
             }
             
             std::cout<<std::endl;          
@@ -2111,12 +2882,70 @@ void YAlignment::AnalyzeMLP(int step = 0, bool build = true, bool bfield = true)
                
                if(layer>=nLAYER) continue;    
                                                                 
+/*
                pos_1[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(0);
                pos_2[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(1);
                pos_3[layer][1] = yGEOM->GToS(chipID[layer],pos_1[layer][0],pos_2[layer][0],pos_3[layer][0])(2);
                est_1[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(0);
                est_2[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(1);
                est_3[layer][1] = yGEOM->GToS(chipID[layer],est_1[layer][0],est_2[layer][0],est_3[layer][0])(2);
+*/
+
+		int iID = chipID[layer];
+		if (layer<=2){
+			//mvtx hit
+			int m_stave = GetStave(iID);
+			int m_chip  = GetChipIdInStave(iID);
+			auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+			TVector3 global;
+			global.SetX(pos_1[layer][0]);
+			global.SetY(pos_2[layer][0]);
+			global.SetZ(pos_3[layer][0]);
+			TVector3 local;
+			local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+			pos_1[layer][1] = local.x(); // local X
+			pos_2[layer][1] = local.z(); // local Y
+			pos_3[layer][1] = local.y(); // local Z (meaningless)
+
+			global.SetX(est_1[layer][0]);
+			global.SetY(est_2[layer][0]);
+			global.SetZ(est_3[layer][0]);
+			local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+			est_1[layer][1] = local.x(); // local X
+			est_2[layer][1] = local.z(); // local Y
+			est_3[layer][1] = local.y(); // local Z (meaningless)
+		}
+		else if (layer>2){
+			//intt hit
+			//definition convention:
+			//  stave -> intt ladderphi
+			//  chip -> intt ladderz
+			int m_ladderphi = GetStave(iID);
+			int m_ladderz   = GetChipIdInStave(iID);
+			auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+			auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+			CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+			TVector3 global;
+			global.SetX(pos_1[layer][0]);
+			global.SetY(pos_2[layer][0]);
+			global.SetZ(pos_3[layer][0]);
+			TVector3 local;
+			local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+			pos_1[layer][1] = local.y(); // local X [1]
+			pos_2[layer][1] = local.z(); // local Y [2]
+			pos_3[layer][1] = local.x(); // local Z (meaningless) [0]
+
+			global.SetX(est_1[layer][0]);
+			global.SetY(est_2[layer][0]);
+			global.SetZ(est_3[layer][0]);
+			local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+			est_1[layer][1] = local.y(); // local X [1]
+			est_2[layer][1] = local.z(); // local Y [2]
+			est_3[layer][1] = local.x(); // local Z (meaningless) [0]
+		}
+
                std::cout<<" YAlignment :: Slayer pos1 est1 "<<pos_1[layer][1]<<" "<<est_1[layer][1]<<std::endl;
                std::cout<<" YAlignment :: Slayer pos2 est2 "<<pos_2[layer][1]<<" "<<est_2[layer][1]<<std::endl;
                std::cout<<" YAlignment :: Slayer pos3 est3 "<<pos_3[layer][1]<<" "<<est_3[layer][1]<<std::endl;
@@ -2348,6 +3177,9 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
    fMLPNetwork = new YMultiLayerPerceptron(fNetworkStructure,fInputTree,"(evno%10)>=0&&(evno%10)<6","(evno%10)>=6&&(evno%10)<8"); 
    fMLPNetwork->SetNpronged(nTrackMax);  
    fMLPNetwork->SetFitModel(FITMODEL);
+   fMLPNetwork->SetActsGeom(actsGeom);
+   fMLPNetwork->SetGeantGeomMVTX(geantGeom_mvtx);
+   fMLPNetwork->SetGeantGeomINTT(geantGeom_intt)
 
    double** input_Max;
    double** input_Min;
@@ -2368,6 +3200,7 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
    }
 
    for(int iID=0; iID<nSensors; iID++){
+/*
       double ip1 = yGEOM->GToS(iID,yGEOM->LToG(iID,0,0)(0),	
  				   yGEOM->LToG(iID,0,0)(1),
                         	   yGEOM->LToG(iID,0,0)(2))(0);
@@ -2380,6 +3213,44 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
       double fp2 = yGEOM->GToS(iID,yGEOM->LToG(iID,511,1023)(0),	
                                    yGEOM->LToG(iID,511,1023)(1),
                                    yGEOM->LToG(iID,511,1023)(2))(1);               
+*/
+
+	double ip1=0, fp1=0;
+	double ip2=0, fp2=0;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords_min = layergeom->get_local_coords_from_pixel(0, 0); // cm, sPHENIX unit
+		ip1 = local_coords_min.x(); //local x
+		ip2 = local_coords_min.z(); //local y
+		TVector3 local_coords_max = layergeom->get_local_coords_from_pixel(511, 1023); // cm, sPHENIX unit
+		fp1 = local_coords_max.x(); //local x
+		fp2 = local_coords_max.z(); //local y
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, 0, 0, local); // cm, sPHENIX unit
+		ip1 = local[1]; //local x
+		ip2 = local[2]; //local y
+		layergeom->find_strip_center_localcoords(m_ladderz, 511, 1023, local); // cm, sPHENIX unit
+		fp1 = local[1]; //local x
+		fp2 = local[2]; //local y
+	}
+
       input_Max[0][iID]=std::max(ip1,fp1);
       input_Min[0][iID]=std::min(ip1,fp1); 
       input_Max[1][iID]=std::max(ip2,fp2);
@@ -2426,18 +3297,110 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
             int icol = pcol*(scol + 0.5);
             //std::cout<<" ** irow "<<irow<<" icol "<<icol<<std::endl;
         
+/*
             float sgSx   = yGEOM->LToG(ichipID,irow,icol).X();
             float sgSy   = yGEOM->LToG(ichipID,irow,icol).Y();
             float sgSr   = TMath::Sqrt(sgSx*sgSx + sgSy*sgSy);
             float sgSphi = TMath::ATan2(sgSy,sgSx);
                   sgSphi = ( sgSphi >= 0 ) ? sgSphi : 2*TMath::ATan2(0,-1) + sgSphi;
             float sgSz   = yGEOM->LToG(ichipID,irow,icol).Z();         
+*/
 
+	float sgSx, sgSy, sgSz;
+	int iID = ichipID;
+ 	int layer = yGEOM->GetLayer(iID);
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local_coords = layergeom->get_local_coords_from_pixel(irow, icol); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local_coords.x());
+		local_coords_use.SetY(local_coords.z());
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		sgSx = global.x();
+		sgSy = global.y();
+		sgSz = global.z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		double local[3] = {0.0, 0.0, 0.0};
+		//fix according to https://github.com/sPHENIX-Collaboration/coresoftware/blob/af62a19b20db96403b74573eb578bc92d2c6e3c5/offline/packages/TrackingDiagnostics/TrackResiduals.cc#L866-L875
+		layergeom->find_strip_center_localcoords(m_ladderz, irow, icol, local); // cm, sPHENIX unit
+		TVector2 local_coords_use;
+		local_coords_use.SetX(local[1]);
+		local_coords_use.SetY(local[2]);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local_coords_use); // cm, sPHENIX unit
+		sgSx = global.x();
+		sgSy = global.y();
+		sgSz = global.z();
+	}
+
+            float sgSr   = TMath::Sqrt(sgSx*sgSx + sgSy*sgSy);
+            float sgSphi = TMath::ATan2(sgSy,sgSx);
+                  sgSphi = ( sgSphi >= 0 ) ? sgSphi : 2*TMath::ATan2(0,-1) + sgSphi;
+
+/*
             float sgS1   = yGEOM->GToS(ichipID,sgSx,sgSy,sgSz)(0);
             float sgS2   = yGEOM->GToS(ichipID,sgSx,sgSy,sgSz)(1);
             float sgS3   = 0;
 
             TVector3 sensorS = yGEOM->GToS(ichipID,sgSx,sgSy,sgSz);
+*/
+	float sgS1;
+	float sgS2;
+	float sgS3 = 0;
+	TVector3 sensorS;
+
+	int iID = ichipID;
+ 	int layer = yGEOM->GetLayer(iID);
+
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(sgSx);
+		global.SetY(sgSy);
+		global.SetZ(sgSz);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sgS1 = local.x(); // local X
+		sgS2 = local.z(); // local Y
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 global;
+		global.SetX(sgSx);
+		global.SetY(sgSy);
+		global.SetZ(sgSz);
+		TVector3 local;
+		local = layergeom->get_local_from_world_coords(surface, actsGeom, global); // cm, sPHENIX unit
+		sgS1 = local.y(); // local X
+		sgS2 = local.z(); // local Y
+	}
 
             double mlpInput[2];
 
@@ -2454,6 +3417,7 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
             float fgS2   = sensorS(1) + mlpOutput[1];
             float fgS3   = mlpOutput[2];
 
+/*
             float fgSx   = yGEOM->SToG(ichipID,fgS1,fgS2,fgS3).X();
             float fgSy   = yGEOM->SToG(ichipID,fgS1,fgS2,fgS3).Y();
             float fgSr   = TMath::Sqrt(fgSx*fgSx + fgSy*fgSy);
@@ -2461,6 +3425,49 @@ void YAlignment::GetGeometry(TString Network_dir, TNtuple* fNtuple, int res_leve
                   fgSphi = ( fgSphi >= 0 ) ? fgSphi : 2*TMath::ATan2(0,-1) + fgSphi;
 
             float fgSz   = yGEOM->SToG(ichipID,fgS1,fgS2,fgS3).Z(); 
+*/
+
+	int iID = ichipID;
+ 	int layer = yGEOM->GetLayer(iID);
+	float fgSx, fgSy, fgSz;
+	if (layer<=2){
+		//mvtx hit
+		int m_stave = GetStave(iID);
+		int m_chip  = GetChipIdInStave(iID);
+		auto hitsetkey = MvtxDefs::genHitSetKey(layer, m_stave, m_chip, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeom_Mvtx* layergeom = dynamic_cast<CylinderGeom_Mvtx*>(geantGeom_MVTX->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(fgS1);
+		local.SetY(fgS2);
+		local.SetZ(fgS3);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		fgSx = global.X();
+		fgSy = global.Y();
+		fgSz = global.Z();
+	}
+	else if (layer>2){
+		//intt hit
+		//definition convention:
+		//  stave -> intt ladderphi
+		//  chip -> intt ladderz
+		int m_ladderphi = GetStave(iID);
+		int m_ladderz   = GetChipIdInStave(iID);
+		auto hitsetkey = InttDefs::genHitSetKey(layer, m_ladderz, m_ladderphi, 0);
+		auto surface = actsGeom->maps().getSiliconSurface(hitsetkey);
+		CylinderGeomIntt* layergeom = dynamic_cast<CylinderGeomIntt*>(geantGeom_INTT->GetLayerGeom(layer));
+		TVector3 local;
+		local.SetX(fgS1);
+		local.SetY(fgS2);
+		local.SetZ(fgS3);
+		TVector3 global = layergeom->get_world_from_local_coords(surface, actsGeom, local); // cm, sPHENIX unit
+		fgSx = global.X();
+		fgSy = global.Y();
+		fgSz = global.Z();
+	}
+            float fgSr   = TMath::Sqrt(fgSx*fgSx + fgSy*fgSy);
+            float fgSphi = TMath::ATan2(fgSy,fgSx);
+                  fgSphi = ( fgSphi >= 0 ) ? fgSphi : 2*TMath::ATan2(0,-1) + fgSphi;
 
       int sensor_Layer			= yGEOM->GetLayer(ichipID); 
       int sensor_HalfBarrel		= yGEOM->GetHalfBarrel(ichipID);  

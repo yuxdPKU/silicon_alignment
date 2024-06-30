@@ -29,9 +29,9 @@
 // there to inform buffered values are outdated.
 //
 ///////////////////////////////////////////////////////////////////////////
-#include "../../YMLPParallel.h"
-#include "../inc/YSynapse.h"
-#include "../inc/YNeuron.h"
+//#include "YMLPParallel.h"
+#include "YSynapse.h"
+#include "YNeuron.h"
 #include "TTree.h"
 #include "TTreeFormula.h"
 #include "TFormula.h"

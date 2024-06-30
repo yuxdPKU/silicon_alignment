@@ -19,14 +19,14 @@
 #if !defined(__CLING__) || defined(__ROOTCLING__)
 //#define ENABLE_UPGRADES
 #include <TGeoMatrix.h> // for TGeoHMatrix
-#include "DetectorsCommonDataFormats/DetMatrixCache.h"
+//#include "DetectorsCommonDataFormats/DetMatrixCache.h"
 
-#include "DetectorsCommonDataFormats/DetID.h"
-#include "DetectorsCommonDataFormats/NameConf.h"
-#include "DetectorsCommonDataFormats/AlignParam.h"
-#include "DetectorsBase/GeometryManager.h"
-#include "CCDB/CcdbApi.h"
-#include "ITSBase/GeometryTGeo.h"
+//#include "DetectorsCommonDataFormats/DetID.h"
+//#include "DetectorsCommonDataFormats/NameConf.h"
+//#include "DetectorsCommonDataFormats/AlignParam.h"
+//#include "DetectorsBase/GeometryManager.h"
+//#include "CCDB/CcdbApi.h"
+//#include "ITSBase/GeometryTGeo.h"
 #include <TRandom.h>
 #include <TFile.h>
 #include <vector>
@@ -81,6 +81,7 @@ public:
 
    //void load_matrix(TString files="geom_sPHENIX.txt");
    //const o2::math_utils::Transform3D& getMatrixL2G(int sensID) const { return mL2G.getMatrix(sensID); };
+   TGeoHMatrix getMatrixL2G(int sensID) const { return mL2G[sensID];}
 
    int GetLastChipIndex(int lay) const { return mLastChipIndex[lay]; }
    int GetFirstChipIndex(int lay) const { return (lay == 0) ? 0 : mLastChipIndex[lay - 1] + 1; }
@@ -154,6 +155,7 @@ public:
    const int StaveBoundary[NLayer + 1] = { 0, 12, 28, 48, 60, 72, 88, 104 };
 
    //o2::detectors::MatrixCache<o2::math_utils::Transform3D> mL2G;    ///< Local to Global matrices
+   std::map<int, TGeoHMatrix> mL2G; //Local to Global matrices
 
    ClassDef(YDetectorGeometry,0)  							//Top level (or geom) structure for all classes   
 };

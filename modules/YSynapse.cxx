@@ -20,8 +20,8 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#include "../inc/YSynapse.h"
-#include "../inc/YNeuron.h"
+#include "YSynapse.h"
+#include "YNeuron.h"
 #include "Riostream.h"
 
 ClassImp(YSynapse);

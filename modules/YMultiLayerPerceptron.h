@@ -22,17 +22,11 @@
 #include "YSensorCorrection.h"
 #include "DataInputStructure.h"
 
-#include "CommonConstants/MathConstants.h"
-#include "MathUtils/Utils.h"
+//#include "CommonConstants/MathConstants.h"
+//#include "MathUtils/Utils.h"
 
-#include <trackbase/MvtxDefs.h>
-#include <mvtx/CylinderGeom_Mvtx.h>
-#include <trackbase/InttDefs.h>
-#include <intt/CylinderGeomIntt.h>
-#include <g4detectors/PHG4CylinderGeomContainer.h>
-
-#include <trackbase/ActsGeometry.h>
-#include <trackbase/ActsSurfaceMaps.h>
+#include <cmath>
+#include "myUtils.h"
 
 class TTree;
 class TEventList;
@@ -150,49 +144,69 @@ struct YImpactParameter {
      double radPos2 = xyz[0] * xyz[0] + xyz[1] * xyz[1];
      double alp = 0;
      if (sectorAlpha || radPos2 < 1) {
-       alp = o2::math_utils::detail::atan2<double>(pxpypz[1], pxpypz[0]);
+       //alp = o2::math_utils::detail::atan2<double>(pxpypz[1], pxpypz[0]);
+       alp = atan2(pxpypz[1], pxpypz[0]);
      } else {
-       alp = o2::math_utils::detail::atan2<double>(xyz[1], xyz[0]);
+       //alp = o2::math_utils::detail::atan2<double>(xyz[1], xyz[0]);
+       alp = atan2(xyz[1], xyz[0]);
      }
      if (sectorAlpha) {
-       alp = o2::math_utils::detail::angle2Alpha<double>(alp);
+       //alp = o2::math_utils::detail::angle2Alpha<double>(alp);
+       alp = angle2Alpha(alp);
      }
      //
      double sn, cs;
-     o2::math_utils::detail::sincos(alp, sn, cs);
+     //o2::math_utils::detail::sincos(alp, sn, cs);
+     sincos(alp, sn, cs);
      // protection against cosp<0
      if (cs * pxpypz[0] + sn * pxpypz[1] < 0) {
-       LOG(debug) << "alpha from phiPos() will invalidate this track parameters, overriding to alpha from phi()";
-       alp = o2::math_utils::detail::atan2<double>(pxpypz[1], pxpypz[0]);
+       //LOG(debug) << "alpha from phiPos() will invalidate this track parameters, overriding to alpha from phi()";
+       std::cout << "alpha from phiPos() will invalidate this track parameters, overriding to alpha from phi()" << std::endl;
+       //alp = o2::math_utils::detail::atan2<double>(pxpypz[1], pxpypz[0]);
+       alp = atan2(pxpypz[1], pxpypz[0]);
        if (sectorAlpha) {
-         alp = o2::math_utils::detail::angle2Alpha<double>(alp);
+         //alp = o2::math_utils::detail::angle2Alpha<double>(alp);
+         alp = angle2Alpha(alp);
        }
-       o2::math_utils::detail::sincos(alp, sn, cs);
+       //o2::math_utils::detail::sincos(alp, sn, cs);
+       sincos(alp, sn, cs);
      }
 
      // protection:  avoid alpha being too close to 0 or +-pi/2
-     if (o2::math_utils::detail::abs<double>(sn) < 2 * kSafe) {
+     //if (o2::math_utils::detail::abs<double>(sn) < 2 * kSafe) {
+     if (std::abs(sn) < 2 * kSafe) {
        if (alp > 0) {
-         alp += alp < o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         //alp += alp < o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         alp += alp < PI/2 ? 2 * kSafe : -2 * kSafe;
        } else {
-         alp += alp > -o2::constants::math::PIHalf ? -2 * kSafe : 2 * kSafe;
+         //alp += alp > -o2::constants::math::PIHalf ? -2 * kSafe : 2 * kSafe;
+         alp += alp > -PI/2 ? -2 * kSafe : 2 * kSafe;
        }
-       o2::math_utils::detail::sincos(alp, sn, cs);
-     } else if (o2::math_utils::detail::abs<double>(cs) < 2 * kSafe) {
+       //o2::math_utils::detail::sincos(alp, sn, cs);
+       sincos(alp, sn, cs);
+     //} else if (o2::math_utils::detail::abs<double>(cs) < 2 * kSafe) {
+     } else if (std::abs(cs) < 2 * kSafe) {
        if (alp > 0) {
-         alp += alp > o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         //alp += alp > o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         alp += alp > PI/2 ? 2 * kSafe : -2 * kSafe;
        } else {
-         alp += alp > -o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         //alp += alp > -o2::constants::math::PIHalf ? 2 * kSafe : -2 * kSafe;
+         alp += alp > -PI/2 ? 2 * kSafe : -2 * kSafe;
        }
-       o2::math_utils::detail::sincos(alp, sn, cs);
+       //o2::math_utils::detail::sincos(alp, sn, cs);
+       sincos(alp, sn, cs);
      }
      // get the vertex of origin and the momentum
-     o2::gpu::gpustd::array<double, 3> ver{xyz[0], xyz[1], xyz[2]};
-     o2::gpu::gpustd::array<double, 3> mom{pxpypz[0], pxpypz[1], pxpypz[2]};
+     //o2::gpu::gpustd::array<double, 3> ver{xyz[0], xyz[1], xyz[2]};
+     //o2::gpu::gpustd::array<double, 3> mom{pxpypz[0], pxpypz[1], pxpypz[2]};
+     std::array<double, 3> ver = {xyz[0], xyz[1], xyz[2]};
+     std::array<double, 3> mom = {pxpypz[0], pxpypz[1], pxpypz[2]};
      //
      // Rotate to the local coordinate system
-     o2::math_utils::detail::rotateZ<double>(ver, -alp);
-     o2::math_utils::detail::rotateZ<double>(mom, -alp);
+     //o2::math_utils::detail::rotateZ<double>(ver, -alp);
+     //o2::math_utils::detail::rotateZ<double>(mom, -alp);
+     rotateZ(ver, -alp);
+     rotateZ(mom, -alp);
      //
      double ptI = 1.f / sqrt(mom[0] * mom[0] + mom[1] * mom[1]);
      
@@ -202,13 +216,16 @@ struct YImpactParameter {
      yP[1] = ver[2];
      yP[2] = mom[1] * ptI;
      yP[3] = mom[2] * ptI;
-     yAbsCharge = o2::math_utils::detail::abs<double>(charge);
+     //yAbsCharge = o2::math_utils::detail::abs<double>(charge);
+     yAbsCharge = std::abs(charge);
      yP[4] = charge ? ptI * charge : ptI;
      //mPID = pid;
      //
-     if (o2::math_utils::detail::abs<double>(1 - yP[2]) < kSafe) {
+     //if (o2::math_utils::detail::abs<double>(1 - yP[2]) < kSafe) {
+     if (std::abs(1 - yP[2]) < kSafe) {
        yP[2] = 1.f - kSafe; // Protection
-     } else if (o2::math_utils::detail::abs<double>(-1 - yP[2]) < kSafe) {
+     //} else if (o2::math_utils::detail::abs<double>(-1 - yP[2]) < kSafe) {
+     } else if (std::abs<double>(-1 - yP[2]) < kSafe) {
        yP[2] = -1.f + kSafe; // Protection
      }
      //
@@ -229,7 +246,8 @@ struct YImpactParameter {
       xt -= x;
       yt -= y;
 
-      float rp4 = yP[4] * bz * o2::constants::math::B2C;//getCurvature(bz);
+      //float rp4 = yP[4] * bz * o2::constants::math::B2C;//getCurvature(bz);
+      float rp4 = yP[4] * bz * B2C;//getCurvature(bz);
       float Almost0 = 1e-12;
       if ((TMath::Abs(bz) < Almost0) || (TMath::Abs(rp4) < Almost0)) {
         ip[0] = -(xt * f1 - yt * r1);
@@ -686,13 +704,6 @@ class YMultiLayerPerceptron : public TMultiLayerPerceptron {
    void UpdateVertexByAlignment();   
    bool TrackerFit(double* input, std::vector<bool> hitUpdate, TVector3* fXFit, double* fdXY, double* fdZR, double* fparXY, double* fparZR, double* mPAR);
 
-   void SetActsGeom(ActsGeometry *geom) {actsGeom = geom;}
-   ActsGeometry* GetActsGeom() {return actsGeom;}
-   void SetGeantGeomMVTX(PHG4CylinderGeomContainer *geom) {geantGeom_mvtx = geom;}
-   PHG4CylinderGeomContainer* GetGeantGeomMVTX() {return geantGeom_mvtx;}
-   void SetGeantGeomINTT(PHG4CylinderGeomContainer *geom) {geantGeom_intt = geom;}
-   PHG4CylinderGeomContainer* GetGeantGeomINTT() {return geantGeom_intt;}
-
  private:
    YMultiLayerPerceptron(const YMultiLayerPerceptron&); // Not implemented
    YMultiLayerPerceptron& operator=(const YMultiLayerPerceptron&); // Not implemented
@@ -889,10 +900,6 @@ class YMultiLayerPerceptron : public TMultiLayerPerceptron {
    TVector3* fvertex_track_TRKF;
    
    ClassDef(YMultiLayerPerceptron, 4) // a Neural Network
-
-   ActsGeometry *actsGeom = nullptr;
-   PHG4CylinderGeomContainer *geantGeom_mvtx;
-   PHG4CylinderGeomContainer *geantGeom_intt;
 
 };
 

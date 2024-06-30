@@ -16,7 +16,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#include "../inc/YDetectorGeometry.h"
+#include "YDetectorGeometry.h"
 
 #include "SegmentationAlpide.h"
 
@@ -87,7 +87,7 @@ YDetectorGeometry::YDetectorGeometry(const char *name, const char *title)
    //These are supposed to be defined as constant header.
 
    //mL2G.setSize(656);
-   //load_matrix("geom_sPHENIX.txt");
+   load_matrix("geom_sPHENIX.txt");
    //o2::base::GeometryManager::loadGeometry("", false, false);
 /*
    TFile file("ITSAlignment.root");
@@ -198,81 +198,83 @@ YDetectorGeometry::YDetectorGeometry(const char *name, const char *title)
 }
 
 
-//void YDetectorGeometry::load_matrix(TString files="geom_sPHENIX.txt")
-//{
-//
-//   FILE *fInput_in;
-//   fInput_in = fopen(files,"read");
-//   int size_tvalue = 2000;
-//   char tvalue[size_tvalue];
-//   for(int a = 0; a < size_tvalue; a++){
-//      tvalue[a] = '\0';
-//   }
-//  
-//   std::cout<<"File Load : "<<files<<std::endl;
-//
-//   while(fgets(tvalue,sizeof(tvalue),fInput_in) != NULL){
-//      TString fTarget = tvalue; 
-//      fTarget = TString(fTarget(0,fTarget.Length()-1));  
-//      fTarget += " ";
-//
-//      TString  value[20];  
-//
-//      int beg = 0;
-//      int end = fTarget.Index(" ", beg + 1);
-//      int cnt = 0;
-//      while (end != -1) {       
-//         value[cnt] = TString(fTarget(beg,end-beg));    
-//         value[cnt].ReplaceAll(" ","");
-//         beg = end + 1;
-//         end = fTarget.Index(" ", beg + 1);
-//         cnt++;
-//      }   
-//
-//      if(value[0]=="sensorID") continue;
-//      else {
-//
-//         int sensorID = value[0].TString::Atoi();      
-//         o2::math_utils::Transform3D mat;
-//         //sensorID layer stave chip Tx Ty Tz Rxx Rxy Rxz Ryx Ryy Ryz Rzx Rzy Rzz 
-//         double Tx = (double) std::stod((const char*)value[4]);
-//         double Ty = (double) std::stod((const char*)value[5]);
-//         double Tz = (double) std::stod((const char*)value[6]);
-// 
-//         double matT[3] = {Tx, Ty, Tz};
-//          
-//         double Rxx = (double) std::stod((const char*)value[7]);
-//         double Rxy = (double) std::stod((const char*)value[8]);
-//         double Rxz = (double) std::stod((const char*)value[9]);
-//         double Ryx = (double) std::stod((const char*)value[10]);
-//         double Ryy = (double) std::stod((const char*)value[11]);
-//         double Ryz = (double) std::stod((const char*)value[12]);
-//         double Rzx = (double) std::stod((const char*)value[13]);
-//         double Rzy = (double) std::stod((const char*)value[14]);
-//         double Rzz = (double) std::stod((const char*)value[15]);         
-///*
-//         std::cout<<sensorID<<" "<<Tx <<" "<<Ty <<" "<<Tz <<" "
-//                                 <<Rxx<<" "<<Rxy<<" "<<Rxz<<" "
-//                                 <<Ryx<<" "<<Ryy<<" "<<Ryz<<" "
-//                                 <<Rzx<<" "<<Rzy<<" "<<Rzz<<std::endl;
-//*/
-//         double matR[9] = {Rxx, Rxy, Rxz, Ryx, Ryy, Ryz, Rzx, Rzy, Rzz};  
-//         TGeoHMatrix ghmat(Form("Chip%d",sensorID));
-//         ghmat.SetTranslation(matT);
-//         ghmat.SetRotation(matR);
-//         
-//         mat.set(ghmat);
-//         mL2G.setMatrix(mat, sensorID);
-//
-//      }
-//    
-//   }
-//   fclose(fInput_in);
-//}
+void YDetectorGeometry::load_matrix(TString files="geom_sPHENIX.txt")
+{
+
+   FILE *fInput_in;
+   fInput_in = fopen(files,"read");
+   int size_tvalue = 2000;
+   char tvalue[size_tvalue];
+   for(int a = 0; a < size_tvalue; a++){
+      tvalue[a] = '\0';
+   }
+  
+   std::cout<<"File Load : "<<files<<std::endl;
+
+   while(fgets(tvalue,sizeof(tvalue),fInput_in) != NULL){
+      TString fTarget = tvalue; 
+      fTarget = TString(fTarget(0,fTarget.Length()-1));  
+      fTarget += " ";
+
+      TString  value[20];  
+
+      int beg = 0;
+      int end = fTarget.Index(" ", beg + 1);
+      int cnt = 0;
+      while (end != -1) {       
+         value[cnt] = TString(fTarget(beg,end-beg));    
+         value[cnt].ReplaceAll(" ","");
+         beg = end + 1;
+         end = fTarget.Index(" ", beg + 1);
+         cnt++;
+      }   
+
+      if(value[0]=="sensorID") continue;
+      else {
+
+         int sensorID = value[0].TString::Atoi();      
+         //o2::math_utils::Transform3D mat;
+         //sensorID layer stave chip Tx Ty Tz Rxx Rxy Rxz Ryx Ryy Ryz Rzx Rzy Rzz 
+         double Tx = (double) std::stod((const char*)value[4]);
+         double Ty = (double) std::stod((const char*)value[5]);
+         double Tz = (double) std::stod((const char*)value[6]);
+ 
+         double matT[3] = {Tx, Ty, Tz};
+          
+         double Rxx = (double) std::stod((const char*)value[7]);
+         double Rxy = (double) std::stod((const char*)value[8]);
+         double Rxz = (double) std::stod((const char*)value[9]);
+         double Ryx = (double) std::stod((const char*)value[10]);
+         double Ryy = (double) std::stod((const char*)value[11]);
+         double Ryz = (double) std::stod((const char*)value[12]);
+         double Rzx = (double) std::stod((const char*)value[13]);
+         double Rzy = (double) std::stod((const char*)value[14]);
+         double Rzz = (double) std::stod((const char*)value[15]);         
+/*
+         std::cout<<sensorID<<" "<<Tx <<" "<<Ty <<" "<<Tz <<" "
+                                 <<Rxx<<" "<<Rxy<<" "<<Rxz<<" "
+                                 <<Ryx<<" "<<Ryy<<" "<<Ryz<<" "
+                                 <<Rzx<<" "<<Rzy<<" "<<Rzz<<std::endl;
+*/
+         double matR[9] = {Rxx, Rxy, Rxz, Ryx, Ryy, Ryz, Rzx, Rzy, Rzz};  
+         TGeoHMatrix ghmat(Form("Chip%d",sensorID));
+         ghmat.SetTranslation(matT);
+         ghmat.SetRotation(matR);
+         
+         //mat.set(ghmat);
+         //mL2G.setMatrix(mat, sensorID);
+         mL2G[sensorID] = ghmat;
+
+      }
+    
+   }
+   fclose(fInput_in);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 /// GToS // mvtx ok + intt ok
 
+//global(x,y,z) -> local (x,y) 
 TVector3 YDetectorGeometry::GToS(int chipID, double gx, double gy, double gz) 
 {
    if(chipID<0){
@@ -283,8 +285,11 @@ TVector3 YDetectorGeometry::GToS(int chipID, double gx, double gy, double gz)
    int Layer = GetLayer(chipID);
 
    if(Layer<NLayerIB){
-      o2::math_utils::Point3D<float> gloC(gx*unit_cm, gy*unit_cm, gz*unit_cm);
-      auto locC = getMatrixL2G(chipID) ^ gloC; // convert global coordinates to local.
+      //o2::math_utils::Point3D<float> gloC(gx*unit_cm, gy*unit_cm, gz*unit_cm);
+      //auto locC = getMatrixL2G(chipID) ^ gloC; // convert global coordinates to local.
+      float gloC[3] = {gx*unit_cm, gy*unit_cm, gz*unit_cm};
+      float locC[3];
+      mL2G[chipID].MasterToLocal(gloC, locC);
       //std::cout<<"[GToS MVTX STEP 0] ChipID "<<chipID<<" gloC "<<gx<<" "<<gy<<" "<<gz<<" locC "<<locC.X()<<" "<<locC.Y()<<" "<<locC.Z()<<std::endl;   
       float l1= locC.X()/unit_cm; //xrow s2
       float l2= locC.Y()/unit_cm; //zcol s1
@@ -294,8 +299,11 @@ TVector3 YDetectorGeometry::GToS(int chipID, double gx, double gy, double gz)
       TVector3 v3(-l2,-l1,l3);   
       return v3;
    } else {
-      o2::math_utils::Point3D<float> gloC(gx*unit_cm, gy*unit_cm, gz*unit_cm);
-      auto locC = getMatrixL2G(chipID) ^ gloC; // convert global coordinates to local.
+      //o2::math_utils::Point3D<float> gloC(gx*unit_cm, gy*unit_cm, gz*unit_cm);
+      //auto locC = getMatrixL2G(chipID) ^ gloC; // convert global coordinates to local.
+      float gloC[3] = {gx*unit_cm, gy*unit_cm, gz*unit_cm};
+      float locC[3];
+      mL2G[chipID].MasterToLocal(gloC, locC);
       //std::cout<<"[GToS INTT STEP 0] ChipID "<<chipID<<" gloC "<<gx<<" "<<gy<<" "<<gz<<" locC "<<locC.X()<<" "<<locC.Y()<<" "<<locC.Z()<<std::endl;   
       float l1= locC.X()/unit_cm; //xrow s2
       float l2= locC.Y()/unit_cm; //zcol s1
@@ -310,6 +318,7 @@ TVector3 YDetectorGeometry::GToS(int chipID, double gx, double gy, double gz)
 ////////////////////////////////////////////////////////////////////////////////
 /// GToL // mvtx ok + intt ok
 
+//global(x,y,z) -> pixel (row, col) 
 TVector3 YDetectorGeometry::GToL(int chipID, double gx, double gy, double gz) 
 {
    if(chipID<0){
@@ -440,6 +449,7 @@ TVector3 YDetectorGeometry::GToL(int chipID, double gx, double gy, double gz)
 ////////////////////////////////////////////////////////////////////////////////
 /// SToL // mvtx ok + intt ok
 
+//local (x,y) -> pixel (row, col)
 TVector3 YDetectorGeometry::SToL(int chipID, double s1, double s2, double s3) 
 { 
 
@@ -563,6 +573,7 @@ TVector3 YDetectorGeometry::SToL(int chipID, double s1, double s2, double s3)
 ////////////////////////////////////////////////////////////////////////////////
 /// SToG
 
+//local (x,y) -> global(x,y,z)
 TVector3 YDetectorGeometry::SToG(int chipID, double s1, double s2, double s3)
 {
 
@@ -619,6 +630,7 @@ TVector3 YDetectorGeometry::SToG(int chipID, double s1, double s2, double s3)
 ////////////////////////////////////////////////////////////////////////////////
 /// LToG // mvtx ok + intt ok
 
+//pixel (row, col) -> global(x,y,z)
 TVector3 YDetectorGeometry::LToG(int chipID, float row, float col) 
 {
    if(chipID<0){
@@ -630,7 +642,8 @@ TVector3 YDetectorGeometry::LToG(int chipID, float row, float col)
 
    if(Layer<NLayerIB){
 
-      o2::math_utils::Point3D<float> locC;
+      //o2::math_utils::Point3D<float> locC;
+      TVector3 locC;
       //o2::itsmft::SegmentationAlpide::detectorToLocal(row, col, locC); // local coordinates
       SegmentationAlpide::detectorToLocalUnchecked(row, col, locC); // local coordinates
    
@@ -642,7 +655,12 @@ TVector3 YDetectorGeometry::LToG(int chipID, float row, float col)
       
       locC.SetXYZ(lx*unit_cm, lz*unit_cm, 0);
      
-      auto gloC = getMatrixL2G(chipID) * locC;
+      //auto gloC = getMatrixL2G(chipID) * locC;
+      float locC_used[3] = {lx*unit_cm, lz*unit_cm, 0};
+      float gloC_used[3];
+      mL2G[chipID].LocalToMaster(locC_used, gloC_used);
+      TVector3 gloC;
+      gloC.SetXYZ(gloC_used[0], gloC_used[1], gloC_used[2]);
 
       float gx = gloC.X()/unit_cm;
       float gy = gloC.Y()/unit_cm;
@@ -726,11 +744,17 @@ TVector3 YDetectorGeometry::LToG(int chipID, float row, float col)
       // center of strip in z
       double zpos = (double) strip_z_index * strip_z + strip_z / 2.0 - (double) nstrips_z_sensor * strip_z / 2.0;
 
-      o2::math_utils::Point3D<float> locC;
+      //o2::math_utils::Point3D<float> locC;
 
-      locC.SetXYZ(ypos*unit_cm, zpos*unit_cm, 0);
+      //locC.SetXYZ(ypos*unit_cm, zpos*unit_cm, 0);
       
-      auto gloC = getMatrixL2G(chipID) * locC;
+      //auto gloC = getMatrixL2G(chipID) * locC;
+
+      float locC_used[3] = {ypos*unit_cm, zpos*unit_cm, 0};
+      float gloC_used[3];
+      mL2G[chipID].LocalToMaster(locC_used, gloC_used);
+      TVector3 gloC;
+      gloC.SetXYZ(gloC_used[0], gloC_used[1], gloC_used[2]);
 
       float gx = gloC.X()/unit_cm;
       float gy = gloC.Y()/unit_cm;

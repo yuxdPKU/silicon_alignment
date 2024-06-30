@@ -248,7 +248,7 @@ In addition, the paw version of mlpfit had additional limitations on the number 
 #define Sensor2 1.0
 #define Sensor3 1.0
 
-#include "../../YMLPBeamProfile.h"
+//#include "YMLPBeamProfile.h"
 
 //#define YMLPDEBUG0
 //#define YMLPDEBUG

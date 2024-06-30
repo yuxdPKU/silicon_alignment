@@ -21,10 +21,10 @@
 ///////////////////////////////////////////////////////////////////////////
 
 #include "TROOT.h"
-#include "../inc/YSynapse.h"
-#include "../inc/YNeuron.h"
-#include "../inc/YMultiLayerPerceptron.h"
-#include "../inc/YMLPAnalyzer.h"
+#include "YSynapse.h"
+#include "YNeuron.h"
+#include "YMultiLayerPerceptron.h"
+#include "YMLPAnalyzer.h"
 #include "TTree.h"
 #include "TTreeFormula.h"
 #include "TEventList.h"

@@ -1,9 +1,9 @@
 
 //#include "../inc/maincoordinate.h"
-#include "../inc/YMultiLayerPerceptron.h"
-#include "../inc/YSynapse.h"
-#include "../inc/YNeuron.h"
-#include "../inc/YSensorCorrection.h"
+#include "YMultiLayerPerceptron.h"
+#include "YSynapse.h"
+#include "YNeuron.h"
+#include "YSensorCorrection.h"
 #include "TClass.h"
 #include "TTree.h"
 #include "TEventList.h"

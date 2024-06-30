@@ -16,7 +16,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#include "../inc/YFitModel.h"
+#include "YFitModel.h"
 
 static void at_exit_of_YFitModel() {
    if (FIT::Internal::yFITLocal)
